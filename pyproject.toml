@@ -1,0 +1,22 @@
+[tool.poetry]
+name = "search_demo"
+version = "0.1.0"
+description = ""
+authors = ["AdriaSG <adrianasg.15@gmail.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.10"
+sentence-transformers = "^2.2.2"
+rank-bm25 = "^0.2.2"
+pandas = "^1.5.3"
+numpy = "^1.24.2"
+scikit-learn = "^1.2.1"
+pyarrow = "^11.0.0"
+fastparquet = "^2023.2.0"
+streamlit = "^1.19.0"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
