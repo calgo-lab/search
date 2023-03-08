@@ -5,10 +5,11 @@ import zipfile
 
 import pandas as pd
 import streamlit as st
-from sentence_transformers import CrossEncoder, SentenceTransformer, util
+from sentence_transformers import CrossEncoder, SentenceTransformer
 from sklearn.feature_extraction import _stop_words
 
-dir_path = "/Users/adrsanchez/PycharmProjects/demo_search/data/"
+#dir_path = "/Users/adrsanchez/PycharmProjects/demo_search/data/"
+dir_path = "./data/"
 
 # Tokenizer helper for BM25
 def bm25_tokenizer(text):

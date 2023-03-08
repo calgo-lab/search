@@ -145,5 +145,4 @@ def main():
                 st.session_state.n_results,
             )
 
-
 main()
