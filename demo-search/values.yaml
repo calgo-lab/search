@@ -5,10 +5,14 @@
 replicaCount: 1
 
 image:
-  repository: registry.datexis.com/s40781/search_demo
+  repository: registry.datexis.com/s40781/search
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
+
+volumes:
+  name: search-demo-volume
+  claimName: search-demo-pvc
 
 imagePullSecrets:
    - name: private-registry-auth

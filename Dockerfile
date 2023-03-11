@@ -11,7 +11,6 @@ RUN pip install poetry && \
     poetry config virtualenvs.create false && \
     poetry install --no-root --no-interaction --no-ansi
 
-COPY data /demo_search/data
 COPY demo /demo_search/demo
 
 EXPOSE 8501
