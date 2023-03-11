@@ -33,7 +33,7 @@ def get_data():
     mask = ~products["sustainability_labels"].apply(
         lambda x: "certificate:OTHER" not in x
     )
-    filter_credible_products = dockeproducts.index[mask]
+    filter_credible_products = products.index[mask]
     return (products, products_short, filter_credible_products)
 
 
