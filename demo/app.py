@@ -8,141 +8,150 @@ from utils import (bm25_tokenizer, get_bm25, get_data, get_sbert_embeddings,
 
 # Define the search functions
 # BM25 search (lexical search)= 100,
-def search_candidate(query, products_short, n_candidate, n_results):
+def search_candidate(
+    query,
+    n_candidate,
+):
     bm25 = get_bm25()
     bm25_scores = bm25.get_scores(bm25_tokenizer(query))
     top_n = np.argpartition(bm25_scores, -n_candidate)[-n_candidate:]
-    bm25_hits = [{"corpus_id": idx, "score": bm25_scores[idx]} for idx in top_n]
-    bm25_hits_df = pd.DataFrame.from_dict(
-        sorted(bm25_hits, key=lambda x: x["score"], reverse=True)[:n_results]
-    )
-    results_bm25 = (
-        pd.merge(
-            bm25_hits_df,
-            products_short,
-            left_on="corpus_id",
-            right_on=products_short.index,
-        )
-        .round(2)
-        .drop(columns="corpus_id")
-    )
-    return (bm25_hits, results_bm25)
+    return [{"corpus_id": idx, "score": bm25_scores[idx]} for idx in top_n]
 
 
 # Semantic Search
-def search_biencoder(query, products_short, n_results):
+def search_biencoder(
+    query,
+    n_results,
+):
     corpus_embeddings = get_sbert_embeddings()
     bi_encoder = load_biencoder()
     query_embedding = bi_encoder.encode(query, convert_to_tensor=True)
     hits = util.semantic_search(query_embedding, corpus_embeddings, top_k=n_results)
-    hits = pd.DataFrame.from_dict(
-        sorted(hits[0], key=lambda x: x["score"], reverse=True)
-    )
-    return (
-        pd.merge(
-            hits, products_short, left_on="corpus_id", right_on=products_short.index
-        )
-        .round(2)
-        .drop(columns="corpus_id")
-    )
+    return hits[0]
 
 
 # Re-Ranking
-def re_ranking(query, bm25_hits, products, products_short, n_results):
+def re_ranking(
+    query,
+    bm25_hits,
+    products,
+):
     products["attributes_concat"] = products["attributes_concat"].astype(str)
     corpus_idx = [hit["corpus_id"] for hit in bm25_hits]
     cross_inp = [[query, products.loc[idx, "attributes_concat"]] for idx in corpus_idx]
     cross_encoder = load_crossencoder()
     cross_scores = cross_encoder.predict(cross_inp)
-    re_ranked_hits = [
-        {"corpus_id": hit["corpus_id"], "cross_scores": cross_scores[idx]}
+    min_score = min(cross_scores)
+    max_score = max(cross_scores)
+    normalized_scores = [(score - min_score) / (max_score - min_score) for score in cross_scores]
+    return [
+        {"corpus_id": hit["corpus_id"], "score": normalized_scores[idx]}
         for idx, hit in enumerate(bm25_hits)
     ]
-    re_ranked_hits_df = pd.DataFrame.from_dict(
-        sorted(re_ranked_hits, key=lambda x: x["cross_scores"], reverse=True)[
-            :n_results
-        ]
-    )
+
+
+def create_results_dataframe(
+    hits, n_results, products_short, products_credibility, filter_credible_products
+):
+    if products_credibility != "all available products":
+        hits = [hit for hit in hits if hit["corpus_id"] not in filter_credible_products]
+    hits_df = pd.DataFrame.from_dict(
+        sorted(hits, key=lambda x: x["score"], reverse=True)
+    )[:n_results]
     return (
         pd.merge(
-            re_ranked_hits_df,
-            products_short,
-            left_on="corpus_id",
-            right_on=products.index,
+            hits_df, products_short, left_on="corpus_id", right_on=products_short.index
         )
         .round(2)
         .drop(columns="corpus_id")
     )
 
 
-def retrieve_results(query, n_candidates, n_results):
-    products, products_short = get_data()
+def retrieve_results(query, n_candidates, n_results, products_credibility):
+    products, products_short, filter_credible_products = get_data()
 
-    st.write(f"Top {st.session_state.n_results} lexical search (BM25) hits")
-    with st.spinner(text="Loading BM25 results..."):
-        st.session_state.bm25_hits, st.session_state.results_bm25 = search_candidate(
-            query, products_short, n_candidates, n_results
-        )
-    st.dataframe(st.session_state.results_bm25)
+    methods = [
+        ("Lexical search (BM25)", search_candidate, n_candidates),
+        ("Bi-Encoder Retrieval", search_biencoder, n_results),
+        ("Cross-Encoder Re-ranked", re_ranking),
+    ]
 
-    st.write("\n-------------------------\n")
-    st.write(f"Top {st.session_state.n_results} Bi-Encoder Retrieval hits")
-    with st.spinner(text="Loading SBERT results..."):
-        st.session_state.results_biencoder = search_biencoder(
-            query, products_short, n_results
-        )
-    st.dataframe(st.session_state.results_biencoder)
-
-    st.write("\n-------------------------\n")
-    st.write(f"Top {st.session_state.n_results} Cross-Encoder Re-ranker hits")
-    with st.spinner(
-        text=f"Reranking top {st.session_state.n_candidates} BM25 candidates..."
-    ):
-        st.session_state.results_reranked = re_ranking(
-            query, st.session_state.bm25_hits, products, products_short, n_results
-        )
-    st.dataframe(st.session_state.results_reranked)
+    for method_name, method_func, *args in methods:
+        st.write(f"Top {n_results} {method_name} hits")
+        with st.spinner(text=f"Loading {method_name} results..."):
+            if method_name == "Lexical search (BM25)":
+                candidates = method_func(query, args[0])
+            if method_name == "Cross-Encoder Re-ranked":
+                hits = method_func(query, candidates, products)
+            else:
+                hits = method_func(query, args[0])
+            results_df = create_results_dataframe(
+                hits, n_results, products_short, products_credibility, filter_credible_products
+            )
+        st.dataframe(results_df)
+        st.write("\n-------------------------\n")
 
 
 def main():
     # Set up the Streamlit app interface
-    st.title("Product Search")
+    st.title("🔍 Product Search")
     with st.sidebar:
-        if "num_candidates" not in st.session_state:
+        if "n_candidates" not in st.session_state:
             st.session_state.n_candidates = 50
-        if "num_results" not in st.session_state:
+        if "n_results" not in st.session_state:
             st.session_state.n_results = 10
+        if "products_credibility" not in st.session_state:
+            st.session_state.products_credibility = "all available products"
+        st.header("Filters:")
+        products_credibility = st.radio(
+            "Product kind",
+            options=[
+                "all available " "products",
+                "only products with " "credible labels",
+            ],
+            index=0,
+        )
+        st.session_state.products_credibility = products_credibility
         n_candidates = st.radio("Number of candidates", options=[25, 50, 100], index=1)
         st.session_state.n_candidates = n_candidates
         n_results = st.radio(
             "Number of retrieved results", options=[5, 10, 15], index=1
         )
+        st.caption(
+            "BM25 retrieve n candidates and then a cross-encoder re-rank those candidates. "
+            "All methods will retrieve selected number of results."
+        )
         st.session_state.n_results = n_results
 
     if "query" not in st.session_state:
         st.session_state.query = ""
-    query = st.text_input("Enter a product search query", value=st.session_state.query)
+    query = st.text_input(
+        "Enter a product search query"
+    )
     search_button = st.button("Search")
-    if search_button:
-        st.session_state.query = query
-        retrieve_results(
-            st.session_state.query,
-            st.session_state.n_candidates,
-            st.session_state.n_results,
-        )
-
-        if n_candidates != st.session_state.n_candidates:
+    if st.session_state.query != query or search_button:
+        if not query.strip():
+            st.error("Query is empty", icon="🚨")
+        else:
+            st.session_state.query = query
             retrieve_results(
                 st.session_state.query,
                 st.session_state.n_candidates,
                 st.session_state.n_results,
+                st.session_state.products_credibility,
             )
 
-        if n_results != st.session_state.n_results:
-            retrieve_results(
-                st.session_state.query,
-                st.session_state.n_candidates,
-                st.session_state.n_results,
-            )
+            if (
+                n_candidates != st.session_state.n_candidates
+                or n_results != st.session_state.n_results
+                or products_credibility != st.session_state.products_credibility
+            ):
+                retrieve_results(
+                    st.session_state.query,
+                    st.session_state.n_candidates,
+                    st.session_state.n_results,
+                    st.session_state.products_credibility,
+                )
+
 
 main()

@@ -8,8 +8,8 @@ import streamlit as st
 from sentence_transformers import CrossEncoder, SentenceTransformer
 from sklearn.feature_extraction import _stop_words
 
-#dir_path = "/Users/adrsanchez/PycharmProjects/demo_search/data/"
-dir_path = "./data/"
+#dir_path = "/Users/adrsanchez/PycharmProjects/demo_search/data"
+dir_path = "/usr/src/app/models/data"
 
 # Tokenizer helper for BM25
 def bm25_tokenizer(text):
@@ -30,7 +30,11 @@ def get_data():
     products_short = products[
         ["name", "categories", "brand", "sustainability_labels", "colors", "url"]
     ]
-    return (products, products_short)
+    mask = ~products["sustainability_labels"].apply(
+        lambda x: "certificate:other" not in x
+    )
+    filter_credible_products = products.index[mask]
+    return (products, products_short, filter_credible_products)
 
 
 # Load the pickled bm25 index
@@ -59,14 +63,14 @@ def get_sbert_embeddings():
 
 
 # Set up the models
-@st.cache_resource(show_spinner="Load biencoder model...")
+@st.cache_resource(show_spinner="Load bi-encoder model...")
 def load_biencoder():
-    return SentenceTransformer("sentence-transformers/multi-qa-mpnet-base-dot-v1")
+    return SentenceTransformer("/usr/src/app/models/multi-qa-mpnet-base-dot-v1")
 
 
-@st.cache_resource(show_spinner="Load crossencoder model...")
+@st.cache_resource(show_spinner="Load cross-encoder model...")
 def load_crossencoder():
-    return CrossEncoder("cross-encoder/stsb-distilroberta-base")
+    return CrossEncoder("/usr/src/app/models/stsb-distilroberta-base_plus_easy")
 
 
 # Not in use !!!
@@ -102,7 +106,6 @@ def array_to_str(column):
             e_str = str("")
         list_str.append(e_str)
     return list_str
-
 
 def make_clickable(val):
     return '<a href="{}" target="_blank">{}</a>'.format(val, val)
