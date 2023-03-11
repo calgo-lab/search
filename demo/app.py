@@ -106,8 +106,8 @@ def main():
         products_credibility = st.radio(
             "Product kind",
             options=[
-                "all available " "products",
-                "only products with " "credible labels",
+                "all available products",
+                "only products with credible labels",
             ],
             index=0,
         )
