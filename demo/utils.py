@@ -2,13 +2,13 @@ import os
 import pickle
 import string
 import zipfile
-
 import streamlit as st
-from sentence_transformers import CrossEncoder, SentenceTransformer
+
+from sentence_transformers import CrossEncoder
 from sklearn.feature_extraction import _stop_words
 
-dir_path = "/usr/src/app/models/data"
-
+#dir_path = "/usr/src/app/models/data"
+dir_path = "/Users/adrsanchez/PycharmProjects/demo_search/data"
 # Tokenizer helper for BM25
 def bm25_tokenizer(text):
     tokenized_doc = []
@@ -46,6 +46,7 @@ def get_bm25():
 
 @st.cache_resource(show_spinner="Load cross-encoder model...")
 def load_crossencoder():
-    return CrossEncoder("/usr/src/app/models/stsb-distilroberta-base_plus_easy")
+    return CrossEncoder('cross-encoder/ms-marco-MiniLM-L-6-v2')
+        #CrossEncoder("/usr/src/app/models/stsb-distilroberta-base_plus_easy")
 
 

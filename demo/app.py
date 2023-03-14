@@ -1,34 +1,19 @@
 import numpy as np
 import pandas as pd
 import streamlit as st
-from sentence_transformers import util
-from utils import (bm25_tokenizer, get_bm25, get_data, get_sbert_embeddings,
-                   load_biencoder, load_crossencoder)
+from utils import (bm25_tokenizer, get_bm25, get_data, load_crossencoder)
 
 
 # Define the search functions
 # BM25 search (lexical search)= 100,
 def search_candidate(
     query,
-    n_candidate,
+    n_candidate = 100,
 ):
     bm25 = get_bm25()
     bm25_scores = bm25.get_scores(bm25_tokenizer(query))
     top_n = np.argpartition(bm25_scores, -n_candidate)[-n_candidate:]
     return [{"corpus_id": idx, "score": bm25_scores[idx]} for idx in top_n]
-
-
-# Semantic Search
-def search_biencoder(
-    query,
-    n_results,
-):
-    corpus_embeddings = get_sbert_embeddings()
-    bi_encoder = load_biencoder()
-    query_embedding = bi_encoder.encode(query, convert_to_tensor=True)
-    hits = util.semantic_search(query_embedding, corpus_embeddings, top_k=n_results)
-    return hits[0]
-
 
 # Re-Ranking
 def re_ranking(
@@ -72,40 +57,27 @@ def create_results_dataframe(
             .drop(columns="corpus_id")
         )
     else:
-        return "No results for your query and/or filters"
+        return "There are no relevant product matches for your query and/or filters"
 
 
-def retrieve_results(query, n_candidates, n_results, products_credibility):
+def retrieve_results(query, n_results, products_credibility):
     products, products_short, filter_credible_products = get_data()
-
-    methods = [
-        ("Lexical search (BM25)", search_candidate, n_candidates),
-        ("Bi-Encoder Retrieval", search_biencoder, n_results),
-        ("Cross-Encoder Re-ranked", re_ranking),
-    ]
-
-    for method_name, method_func, *args in methods:
-        st.write(f"Top {n_results} {method_name} hits")
-        with st.spinner(text=f"Loading {method_name} results..."):
-            if method_name == "Lexical search (BM25)":
-                candidates = method_func(query, args[0])
-            if method_name == "Cross-Encoder Re-ranked":
-                hits = method_func(query, candidates, products)
-            else:
-                hits = method_func(query, args[0])
-            results = create_results_dataframe(
-                hits,
-                n_results,
-                products_short,
-                products_credibility,
-                filter_credible_products,
-            )
-        if isinstance(results, pd.DataFrame):
-            st.dataframe(results)
-        else:
-            st.error(results)
-        st.write("\n-------------------------\n")
-
+    st.write(f"Top {n_results} BM25 + Cross-Encoder Re-ranked hits")
+    with st.spinner(text=f"Looking for relevant candidates..."):
+        candidates = search_candidate(query)
+    with st.spinner(text=f"Re-ranking candidates..."):
+        hits = re_ranking(query, candidates, products)
+    results = create_results_dataframe(
+        hits,
+        n_results,
+        products_short,
+        products_credibility,
+        filter_credible_products,
+    )
+    if isinstance(results, pd.DataFrame):
+        st.dataframe(results)
+    else:
+        st.error(results, icon="🥺")
 
 def main():
     # Set up the Streamlit app interface
@@ -128,15 +100,9 @@ def main():
             help="3rd party labels are those without evaluation in the GreenDB.",
         )
         st.session_state.products_credibility = products_credibility
-        n_candidates = st.radio("Number of candidates", options=[25, 50, 100], index=1)
-        st.session_state.n_candidates = n_candidates
-        n_results = st.radio(
-            "Number of retrieved results", options=[5, 10, 15], index=1
-        )
-        st.caption(
-            "BM25 retrieve n candidates and then a cross-encoder re-rank those candidates. "
-            "All methods will retrieve selected number of results."
-        )
+
+        n_results = st.select_slider(
+            "Number of retrieved results", options=[5, 10, 15, 20], value= 10 )
         st.session_state.n_results = n_results
 
     if "query" not in st.session_state:
@@ -150,19 +116,16 @@ def main():
             st.session_state.query = query
             retrieve_results(
                 st.session_state.query,
-                st.session_state.n_candidates,
                 st.session_state.n_results,
                 st.session_state.products_credibility,
             )
 
             if (
-                n_candidates != st.session_state.n_candidates
-                or n_results != st.session_state.n_results
+                n_results != st.session_state.n_results
                 or products_credibility != st.session_state.products_credibility
             ):
                 retrieve_results(
                     st.session_state.query,
-                    st.session_state.n_candidates,
                     st.session_state.n_results,
                     st.session_state.products_credibility,
                 )
