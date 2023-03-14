@@ -43,7 +43,9 @@ def re_ranking(
     cross_scores = cross_encoder.predict(cross_inp)
     min_score = min(cross_scores)
     max_score = max(cross_scores)
-    normalized_scores = [(score - min_score) / (max_score - min_score) for score in cross_scores]
+    normalized_scores = [
+        (score - min_score) / (max_score - min_score) for score in cross_scores
+    ]
     return [
         {"corpus_id": hit["corpus_id"], "score": normalized_scores[idx]}
         for idx, hit in enumerate(bm25_hits)
@@ -55,16 +57,22 @@ def create_results_dataframe(
 ):
     if products_credibility != "all available products":
         hits = [hit for hit in hits if hit["corpus_id"] not in filter_credible_products]
-    hits_df = pd.DataFrame.from_dict(
-        sorted(hits, key=lambda x: x["score"], reverse=True)
-    )[:n_results]
-    return (
-        pd.merge(
-            hits_df, products_short, left_on="corpus_id", right_on=products_short.index
+    if len(hits) != 0:
+        hits_df = pd.DataFrame.from_dict(
+            sorted(hits, key=lambda x: x["score"], reverse=True)
+        )[:n_results]
+        return (
+            pd.merge(
+                hits_df,
+                products_short,
+                left_on="corpus_id",
+                right_on=products_short.index,
+            )
+            .round(2)
+            .drop(columns="corpus_id")
         )
-        .round(2)
-        .drop(columns="corpus_id")
-    )
+    else:
+        return "No results for your query and/or filters"
 
 
 def retrieve_results(query, n_candidates, n_results, products_credibility):
@@ -85,10 +93,17 @@ def retrieve_results(query, n_candidates, n_results, products_credibility):
                 hits = method_func(query, candidates, products)
             else:
                 hits = method_func(query, args[0])
-            results_df = create_results_dataframe(
-                hits, n_results, products_short, products_credibility, filter_credible_products
+            results = create_results_dataframe(
+                hits,
+                n_results,
+                products_short,
+                products_credibility,
+                filter_credible_products,
             )
-        st.dataframe(results_df)
+        if isinstance(results, pd.DataFrame):
+            st.dataframe(results)
+        else:
+            st.error(results)
         st.write("\n-------------------------\n")
 
 
@@ -107,9 +122,10 @@ def main():
             "Product kind",
             options=[
                 "all available products",
-                "only products with credible labels",
+                "exclude 3rd party sustainability labels",
             ],
             index=0,
+            help="3rd party labels are those without evaluation in the GreenDB.",
         )
         st.session_state.products_credibility = products_credibility
         n_candidates = st.radio("Number of candidates", options=[25, 50, 100], index=1)
@@ -125,9 +141,7 @@ def main():
 
     if "query" not in st.session_state:
         st.session_state.query = ""
-    query = st.text_input(
-        "Enter a product search query"
-    )
+    query = st.text_input("Enter a product search query")
     search_button = st.button("Search")
     if st.session_state.query != query or search_button:
         if not query.strip():
@@ -152,6 +166,9 @@ def main():
                     st.session_state.n_results,
                     st.session_state.products_credibility,
                 )
+        st.caption(
+            "Disclaimer: Retrieved products are taken from a GreenDB dump from 02-01-2023."
+        )
 
 
 main()

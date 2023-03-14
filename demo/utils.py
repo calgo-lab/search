@@ -8,7 +8,6 @@ import streamlit as st
 from sentence_transformers import CrossEncoder, SentenceTransformer
 from sklearn.feature_extraction import _stop_words
 
-#dir_path = "/Users/adrsanchez/PycharmProjects/demo_search/data"
 dir_path = "/usr/src/app/models/data"
 
 # Tokenizer helper for BM25
@@ -31,7 +30,7 @@ def get_data():
         ["name", "categories", "brand", "sustainability_labels", "colors", "url"]
     ]
     mask = ~products["sustainability_labels"].apply(
-        lambda x: "certificate:OTHER" not in x
+        lambda x: "certificate:OTHER" not in x and "certificate:UNKNOWN" not in x
     )
     filter_credible_products = products.index[mask]
     return (products, products_short, filter_credible_products)
@@ -106,6 +105,7 @@ def array_to_str(column):
             e_str = str("")
         list_str.append(e_str)
     return list_str
+
 
 def make_clickable(val):
     return '<a href="{}" target="_blank">{}</a>'.format(val, val)
