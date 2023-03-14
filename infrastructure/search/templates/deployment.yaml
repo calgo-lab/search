@@ -1,14 +1,14 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "demo-search.fullname" . }}
+  name: {{ include "search.fullname" . }}
   labels:
-    {{- include "demo-search.labels" . | nindent 4 }}
+    {{- include "search.labels" . | nindent 4 }}
 spec:
   replicas: {{ .Values.replicaCount }}
   selector:
     matchLabels:
-      {{- include "demo-search.selectorLabels" . | nindent 6 }}
+      {{- include "search.selectorLabels" . | nindent 6 }}
   template:
     metadata:
       {{- with .Values.podAnnotations }}
@@ -16,7 +16,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       labels:
-        {{- include "demo-search.selectorLabels" . | nindent 8 }}
+        {{- include "search.selectorLabels" . | nindent 8 }}
     spec:
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
